@@ -8,6 +8,15 @@ JIETU="$SCRIPT_DIR/jietu"
 IMGBOX="$SCRIPT_DIR/imgbox"
 BDINFO="/usr/local/bin/bdinfo"
 
+# 检查并安装 imgbox-cli
+function install_imgbox_cli() {
+    echo -e "\n[+] 安装 imgbox-cli..."
+    sudo apt update
+    sudo apt install -y python3-pip
+    pip3 install imgbox-cli
+    echo -e "\n✅ imgbox-cli 安装完成。"
+}
+
 # 检查并安装必要组件
 function check_and_install() {
     echo -e "\n[+] 检查并安装必要组件..."
@@ -26,6 +35,8 @@ function check_and_install() {
         sudo apt install -y mediainfo ffmpeg mono-complete git p7zip-full curl jq
     fi
 
+    install_imgbox_cli  # 安装 imgbox-cli
+
     mkdir -p "$SCRIPT_DIR" "$UPLOAD_DIR"
 
     if [[ ! -f "$JIETU" ]]; then
@@ -39,14 +50,6 @@ function check_and_install() {
         sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O "$BDINFO"
         sudo chmod +x "$BDINFO"
     fi
-
-    if [[ ! -f "$IMGBOX" ]]; then
-        echo -e "\n[+] 下载 imgbox 上传脚本..."
-        wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/imgbox -O "$IMGBOX"
-        chmod +x "$IMGBOX"
-    fi
-
-    grep -q "$IMGBOX" "$JIETU" || sed -i "s|^uploader=.*|uploader=$IMGBOX|" "$JIETU"
 
     echo -e "\n✅ 依赖检查完成，必要工具已就绪。"
 }
