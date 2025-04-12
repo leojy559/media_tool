@@ -27,30 +27,28 @@ EOF
 # 安装依赖
 install_dependencies() {
     echo -e "\n[+] 检查并安装必要组件..."
-    sudo apt update
+    sudo apt update -qq
     sudo apt install -y mediainfo p7zip-full git curl jq mono-complete pipx python3-venv
 
     export PATH="$PATH:$HOME/.local/bin:/root/.local/bin"
     pipx ensurepath >/dev/null 2>&1
 
+    # 安装 bdinfo
     if [[ ! -f /usr/local/bin/bdinfo ]]; then
         echo "[+] 下载 bdinfo..."
-        sudo mkdir -p /usr/local/bin
         sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo
     fi
-    
-    # 自动赋予执行权限
     sudo chmod +x /usr/local/bin/bdinfo
-    echo "[+] 已为 bdinfo 赋予执行权限"
 
-    # 自动给 media_tool.sh 赋予执行权限
-    sudo chmod +x ./media_tool.sh
-    echo "[+] 已为 media_tool.sh 赋予执行权限"
-
-    if ! command -v imgbox &> /dev/null; then
-        echo "[+] 安装 imgbox-cli..."
-        pipx install imgbox-cli
+    # 安装 jietu
+    if [[ ! -f /usr/local/bin/jietu ]]; then
+        echo "[+] 下载 jietu..."
+        sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/jietu -O /usr/local/bin/jietu
     fi
+    sudo chmod +x /usr/local/bin/jietu
+
+    # 给当前脚本赋予执行权限
+    chmod +x "$0"
 }
 
 # 设置下载目录
@@ -93,43 +91,30 @@ change_screenshot_settings() {
 
 # 获取 mediainfo
 run_mediainfo() {
-    choose_movie_dir  # 直接跳转到选择影视目录
+    [[ -z "$SELECTED_DIR" ]] && choose_movie_dir
     echo -e "\n[+] 获取 mediainfo..."
-    result=$(mediainfo "$SELECTED_DIR")
-    echo "$result"
+    mediainfo "$SELECTED_DIR"
 }
 
-# 获取 bdinfo
+# 获取 bdinfo（使用 --main 自动选择）
 run_bdinfo() {
-    choose_movie_dir  # 直接跳转到选择影视目录
+    [[ -z "$SELECTED_DIR" ]] && choose_movie_dir
     echo -e "\n[+] 获取 bdinfo..."
-    result=$(/usr/local/bin/bdinfo "$SELECTED_DIR")
-    echo "$result"
+    /usr/local/bin/bdinfo --main "$SELECTED_DIR"
 }
 
 # 获取截图并上传
 run_screenshots() {
-    choose_movie_dir  # 直接跳转到选择影视目录
+    [[ -z "$SELECTED_DIR" ]] && choose_movie_dir
+
     echo -e "\n[+] 正在截图并上传..."
     video_file=$(find "$SELECTED_DIR" -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.avi" \) | head -n 1)
     if [[ -z "$video_file" ]]; then
-        echo "未找到视频文件。"
+        echo "❌ 未找到视频文件。"
         return
     fi
 
-    shot_dir="/tmp/screens_$(date +%s)"
-    mkdir -p "$shot_dir"
-
-    ffmpeg -hide_banner -loglevel error -i "$video_file" -vf "select=not(mod(n\,1000)),scale=$SCREEN_RESOLUTION" -frames:v "$SCREEN_COUNT" "$shot_dir/screen_%02d.jpg"
-
-    echo -e "\n[+] 上传截图..."
-    links=""
-
-    for img in "$shot_dir"/*.jpg; do
-        link=$(imgbox upload "$img" | grep -o 'https://imgbox.com/[^ ]*')
-        echo "$link"
-        links+="$link"$'\n'
-    done
+    /usr/local/bin/jietu --file "$video_file" --count "$SCREEN_COUNT" --size "$SCREEN_RESOLUTION"
 }
 
 # 主菜单
@@ -137,7 +122,7 @@ main_menu() {
     while true; do
         echo -e "\n====== Media Tool 主菜单 ======"
         if [[ -n "$SELECTED_DIR" ]]; then
-            echo "1. 选择影视目录（当前：$(basename "$SELECTED_DIR")）"
+            echo "1. 重新选择影视目录（当前：$(basename "$SELECTED_DIR")）"
         else
             echo "1. 选择影视目录（当前未选择）"
         fi
@@ -146,7 +131,7 @@ main_menu() {
         echo "4. 获取截图上传链接"
         echo "5. 修改截图参数"
         echo "0. 退出"
-        read -rp "请选择操作项 [1-6]: " choice
+        read -rp "请选择操作项 [0-5]: " choice
 
         case $choice in
             1) choose_movie_dir ;;
