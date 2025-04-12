@@ -3,6 +3,7 @@
 CONFIG_FILE="$HOME/.media_tool_config"
 DEFAULT_SCREEN_COUNT=5
 DEFAULT_RESOLUTION="1920x1080"
+SELECTED_DIR=""
 
 # 加载配置
 load_config() {
@@ -23,27 +24,38 @@ SCREEN_RESOLUTION="$SCREEN_RESOLUTION"
 EOF
 }
 
+# 自动复制到剪贴板
+copy_to_clipboard() {
+    if command -v xclip &>/dev/null; then
+        echo "$1" | xclip -selection clipboard
+        echo "✅ 已复制到剪贴板 (xclip)"
+    elif command -v wl-copy &>/dev/null; then
+        echo "$1" | wl-copy
+        echo "✅ 已复制到剪贴板 (wl-copy)"
+    elif command -v pbcopy &>/dev/null; then
+        echo "$1" | pbcopy
+        echo "✅ 已复制到剪贴板 (pbcopy)"
+    else
+        echo "⚠️ 未检测到剪贴板工具，请手动复制："
+    fi
+}
+
 # 安装依赖
 install_dependencies() {
     echo -e "\n[+] 检查并安装必要组件..."
     sudo apt update
-    sudo apt install -y mediainfo p7zip-full git curl jq mono-complete
+    sudo apt install -y mediainfo p7zip-full git curl jq mono-complete pipx python3-venv xclip
 
-    # 安装 bdinfo
+    export PATH="$PATH:$HOME/.local/bin:/root/.local/bin"
+    pipx ensurepath >/dev/null 2>&1
+
     if [[ ! -f /usr/local/bin/bdinfo ]]; then
         echo "[+] 下载 bdinfo..."
+        sudo mkdir -p /usr/local/bin
         sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo
         sudo chmod +x /usr/local/bin/bdinfo
     fi
 
-    # 安装 pipx
-    if ! command -v pipx &> /dev/null; then
-        echo "[+] 安装 pipx..."
-        sudo apt install -y pipx python3-venv
-        python3 -m ensurepip --upgrade
-    fi
-
-    # 安装 imgbox-cli
     if ! command -v imgbox &> /dev/null; then
         echo "[+] 安装 imgbox-cli..."
         pipx install imgbox-cli
@@ -63,11 +75,14 @@ setup_download_dir() {
 choose_movie_dir() {
     MOVIE_DIRS=("$DOWNLOAD_DIR"/*)
     echo -e "\n请选择你要操作的影视文件夹："
-    select MOVIE_DIR in "${MOVIE_DIRS[@]}" "返回上层"; do
+    select MOVIE_DIR in "${MOVIE_DIRS[@]}" "取消"; do
         if [[ "$REPLY" -le "${#MOVIE_DIRS[@]}" && "$REPLY" -gt 0 ]]; then
+            SELECTED_DIR="$MOVIE_DIR"
+            echo -e "✅ 已选择目录：$SELECTED_DIR"
             break
         elif [[ "$REPLY" -eq $((${#MOVIE_DIRS[@]} + 1)) ]]; then
-            return
+            echo "已取消选择。"
+            break
         else
             echo "无效选择，请重新输入。"
         fi
@@ -87,20 +102,37 @@ change_screenshot_settings() {
 
 # 获取 mediainfo
 run_mediainfo() {
+    if [[ -z "$SELECTED_DIR" ]]; then
+        echo "⚠️ 请先选择影视目录。"
+        return
+    fi
     echo -e "\n[+] 获取 mediainfo..."
-    mediainfo "$MOVIE_DIR"
+    result=$(mediainfo "$SELECTED_DIR")
+    echo "$result"
+    copy_to_clipboard "$result"
 }
 
 # 获取 bdinfo
 run_bdinfo() {
+    if [[ -z "$SELECTED_DIR" ]]; then
+        echo "⚠️ 请先选择影视目录。"
+        return
+    fi
     echo -e "\n[+] 获取 bdinfo..."
-    sudo /usr/local/bin/bdinfo "$MOVIE_DIR"
+    result=$(/usr/local/bin/bdinfo "$SELECTED_DIR")
+    echo "$result"
+    copy_to_clipboard "$result"
 }
 
 # 获取截图并上传
 run_screenshots() {
+    if [[ -z "$SELECTED_DIR" ]]; then
+        echo "⚠️ 请先选择影视目录。"
+        return
+    fi
+
     echo -e "\n[+] 正在截图并上传..."
-    video_file=$(find "$MOVIE_DIR" -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.avi" \) | head -n 1)
+    video_file=$(find "$SELECTED_DIR" -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.avi" \) | head -n 1)
     if [[ -z "$video_file" ]]; then
         echo "未找到视频文件。"
         return
@@ -112,45 +144,39 @@ run_screenshots() {
     ffmpeg -hide_banner -loglevel error -i "$video_file" -vf "select=not(mod(n\,1000)),scale=$SCREEN_RESOLUTION" -frames:v "$SCREEN_COUNT" "$shot_dir/screen_%02d.jpg"
 
     echo -e "\n[+] 上传截图..."
+    links=""
     for img in "$shot_dir"/*.jpg; do
-        imgbox upload "$img"
+        link=$(imgbox upload "$img" | grep -o 'https://imgbox.com/[^ ]*')
+        echo "$link"
+        links+="$link"$'\n'
     done
+    copy_to_clipboard "$links"
 }
 
 # 主菜单
 main_menu() {
     while true; do
         echo -e "\n====== Media Tool 主菜单 ======"
-        echo "1. 获取 mediainfo"
-        echo "2. 获取 bdinfo"
-        echo "3. 获取截图并上传链接"
-        echo "4. 修改截图参数"
-        echo "5. 退出"
-        read -rp "请选择操作项 [1-5]: " choice
+        if [[ -n "$SELECTED_DIR" ]]; then
+            echo "1. 选择影视目录（当前：$(basename "$SELECTED_DIR")）"
+        else
+            echo "1. 选择影视目录（当前未选择）"
+        fi
+        echo "2. 获取 mediainfo"
+        echo "3. 获取 bdinfo"
+        echo "4. 获取截图并上传链接"
+        echo "5. 修改截图参数"
+        echo "6. 退出"
+        read -rp "请选择操作项 [1-6]: " choice
 
         case $choice in
-            1)
-                choose_movie_dir
-                run_mediainfo
-                ;;
-            2)
-                choose_movie_dir
-                run_bdinfo
-                ;;
-            3)
-                choose_movie_dir
-                run_screenshots
-                ;;
-            4)
-                change_screenshot_settings
-                ;;
-            5)
-                echo "退出脚本。"
-                exit 0
-                ;;
-            *)
-                echo "无效选择，请重新输入。"
-                ;;
+            1) choose_movie_dir ;;
+            2) run_mediainfo ;;
+            3) run_bdinfo ;;
+            4) run_screenshots ;;
+            5) change_screenshot_settings ;;
+            6) echo "退出脚本。"; exit 0 ;;
+            *) echo "无效选择，请重新输入。" ;;
         esac
     done
 }
