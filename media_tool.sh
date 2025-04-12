@@ -127,6 +127,7 @@ run_screenshots() {
 
     echo -e "\n[+] 上传截图..."
     links=""
+
     for img in "$shot_dir"/*.jpg; do
         link=$(imgbox upload "$img" | grep -o 'https://imgbox.com/[^ ]*')
         echo "$link"
