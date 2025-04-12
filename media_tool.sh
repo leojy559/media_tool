@@ -27,9 +27,8 @@ EOF
 # 安装依赖
 install_dependencies() {
     echo -e "\n[+] 检查并安装必要组件..."
-    
-    # 只检查依赖是否安装，不进行更新和升级
-    sudo apt install -y --no-install-recommends mediainfo p7zip-full git curl jq mono-complete pipx python3-venv
+    sudo apt update
+    sudo apt install -y mediainfo p7zip-full git curl jq mono-complete pipx python3-venv
 
     export PATH="$PATH:$HOME/.local/bin:/root/.local/bin"
     pipx ensurepath >/dev/null 2>&1
@@ -38,8 +37,15 @@ install_dependencies() {
         echo "[+] 下载 bdinfo..."
         sudo mkdir -p /usr/local/bin
         sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo
-        sudo chmod +x /usr/local/bin/bdinfo
     fi
+    
+    # 自动赋予执行权限
+    sudo chmod +x /usr/local/bin/bdinfo
+    echo "[+] 已为 bdinfo 赋予执行权限"
+
+    # 自动给 media_tool.sh 赋予执行权限
+    sudo chmod +x ./media_tool.sh
+    echo "[+] 已为 media_tool.sh 赋予执行权限"
 
     if ! command -v imgbox &> /dev/null; then
         echo "[+] 安装 imgbox-cli..."
@@ -87,9 +93,7 @@ change_screenshot_settings() {
 
 # 获取 mediainfo
 run_mediainfo() {
-    if [[ -z "$SELECTED_DIR" ]]; then
-        choose_movie_dir  # 自动跳转到选择目录
-    fi
+    choose_movie_dir  # 直接跳转到选择影视目录
     echo -e "\n[+] 获取 mediainfo..."
     result=$(mediainfo "$SELECTED_DIR")
     echo "$result"
@@ -97,9 +101,7 @@ run_mediainfo() {
 
 # 获取 bdinfo
 run_bdinfo() {
-    if [[ -z "$SELECTED_DIR" ]]; then
-        choose_movie_dir  # 自动跳转到选择目录
-    fi
+    choose_movie_dir  # 直接跳转到选择影视目录
     echo -e "\n[+] 获取 bdinfo..."
     result=$(/usr/local/bin/bdinfo "$SELECTED_DIR")
     echo "$result"
@@ -107,10 +109,7 @@ run_bdinfo() {
 
 # 获取截图并上传
 run_screenshots() {
-    if [[ -z "$SELECTED_DIR" ]]; then
-        choose_movie_dir  # 自动跳转到选择目录
-    fi
-
+    choose_movie_dir  # 直接跳转到选择影视目录
     echo -e "\n[+] 正在截图并上传..."
     video_file=$(find "$SELECTED_DIR" -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.avi" \) | head -n 1)
     if [[ -z "$video_file" ]]; then
