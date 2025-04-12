@@ -1,148 +1,169 @@
 #!/bin/bash
 
-# 默认截图参数
-SHOT_COUNT=5
-SHOT_RESOLUTION="1920x1080"
-
-# 用户首次设置的下载目录会保存到这个文件中
 CONFIG_FILE="$HOME/.media_tool_config"
+DEFAULT_SCREEN_COUNT=5
+DEFAULT_RESOLUTION="1920x1080"
+SELECTED_DIR=""
 
-# 检查并安装依赖
-check_dependencies() {
-    echo "[+] 检查并安装必要组件：git, curl, jq, p7zip-full, mediainfo, ffmpeg, pipx"
-    sudo apt update >/dev/null
-    sudo apt install -y git curl jq p7zip-full mediainfo ffmpeg python3-pip >/dev/null
+# 加载配置
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        source "$CONFIG_FILE"
+    else
+        SCREEN_COUNT=$DEFAULT_SCREEN_COUNT
+        SCREEN_RESOLUTION=$DEFAULT_RESOLUTION
+    fi
+}
 
-    if ! command -v pipx &>/dev/null; then
-        echo "[+] 安装 pipx..."
-        sudo apt install pipx -y >/dev/null
-        pipx ensurepath
+# 保存配置
+save_config() {
+    cat > "$CONFIG_FILE" <<EOF
+DOWNLOAD_DIR="$DOWNLOAD_DIR"
+SCREEN_COUNT=$SCREEN_COUNT
+SCREEN_RESOLUTION="$SCREEN_RESOLUTION"
+EOF
+}
+
+# 安装依赖
+install_dependencies() {
+    echo -e "\n[+] 检查并安装必要组件..."
+    sudo apt update
+    sudo apt install -y mediainfo p7zip-full git curl jq mono-complete pipx python3-venv
+
+    export PATH="$PATH:$HOME/.local/bin:/root/.local/bin"
+    pipx ensurepath >/dev/null 2>&1
+
+    if [[ ! -f /usr/local/bin/bdinfo ]]; then
+        echo "[+] 下载 bdinfo..."
+        sudo mkdir -p /usr/local/bin
+        sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo
+        sudo chmod +x /usr/local/bin/bdinfo
     fi
 
-    if ! command -v imgbox &>/dev/null; then
+    if ! command -v imgbox &> /dev/null; then
         echo "[+] 安装 imgbox-cli..."
         pipx install imgbox-cli
     fi
 }
 
-# 选择影视目录
-choose_media_dir() {
-    echo "📁 当前未设置影视目录，请输入你的 qBittorrent 下载目录路径："
-    read -rp "> " MEDIA_DIR
-    echo "$MEDIA_DIR" > "$CONFIG_FILE"
+# 设置下载目录
+setup_download_dir() {
+    if [[ -z "$DOWNLOAD_DIR" || ! -d "$DOWNLOAD_DIR" ]]; then
+        echo -e "\n请输入 qBittorrent 的下载目录路径（如 /home/ikirito/qbittorrent/Downloads）："
+        read -r DOWNLOAD_DIR
+        save_config
+    fi
 }
 
-# 显示目录列表供用户选择
-select_movie_folder() {
-    MOVIES=("$(ls -1 "$MEDIA_DIR")")
-    while true; do
-        echo -e "\n🎬 读取影视目录：$MEDIA_DIR"
-        i=1
-        for movie in "$MEDIA_DIR"/*; do
-            [ -d "$movie" ] && echo "$i. $(basename "$movie")" && MOVIE_MAP[$i]="$movie" && ((i++))
-        done
-        echo "$i. 返回主菜单"
-        read -rp "> " SELECTED
-        if [[ $SELECTED -ge 1 && $SELECTED -lt $i ]]; then
-            CURRENT_DIR="${MOVIE_MAP[$SELECTED]}"
+# 选择影视文件夹
+choose_movie_dir() {
+    MOVIE_DIRS=("$DOWNLOAD_DIR"/*)
+    echo -e "\n请选择你要操作的影视文件夹："
+    select MOVIE_DIR in "${MOVIE_DIRS[@]}" "取消"; do
+        if [[ "$REPLY" -le "${#MOVIE_DIRS[@]}" && "$REPLY" -gt 0 ]]; then
+            SELECTED_DIR="$MOVIE_DIR"
+            echo -e "✅ 已选择目录：$SELECTED_DIR"
             break
-        elif [[ $SELECTED -eq $i ]]; then
-            CURRENT_DIR=""
+        elif [[ "$REPLY" -eq $((${#MOVIE_DIRS[@]} + 1)) ]]; then
+            echo "已取消选择。"
             break
         else
-            echo "无效选择，请重试。"
+            echo "无效选择，请重新输入。"
         fi
+    done
+}
+
+# 修改截图参数
+change_screenshot_settings() {
+    echo -e "\n当前截图数量：$SCREEN_COUNT，分辨率：$SCREEN_RESOLUTION"
+    read -rp "请输入新的截图数量（回车跳过）: " new_count
+    read -rp "请输入新的截图分辨率（如 1920x1080，回车跳过）: " new_resolution
+    [[ -n "$new_count" ]] && SCREEN_COUNT="$new_count"
+    [[ -n "$new_resolution" ]] && SCREEN_RESOLUTION="$new_resolution"
+    save_config
+    echo -e "✅ 已更新截图参数：$SCREEN_COUNT 张，分辨率 $SCREEN_RESOLUTION"
+}
+
+# 获取 mediainfo
+run_mediainfo() {
+    if [[ -z "$SELECTED_DIR" ]]; then
+        echo "⚠️ 请先选择影视目录。"
+        return
+    fi
+    echo -e "\n[+] 获取 mediainfo..."
+    result=$(mediainfo "$SELECTED_DIR")
+    echo "$result"
+}
+
+# 获取 bdinfo
+run_bdinfo() {
+    if [[ -z "$SELECTED_DIR" ]]; then
+        echo "⚠️ 请先选择影视目录。"
+        return
+    fi
+    echo -e "\n[+] 获取 bdinfo..."
+    result=$(/usr/local/bin/bdinfo "$SELECTED_DIR")
+    echo "$result"
+}
+
+# 获取截图并上传
+run_screenshots() {
+    if [[ -z "$SELECTED_DIR" ]]; then
+        echo "⚠️ 请先选择影视目录。"
+        return
+    fi
+
+    echo -e "\n[+] 正在截图并上传..."
+    video_file=$(find "$SELECTED_DIR" -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.avi" \) | head -n 1)
+    if [[ -z "$video_file" ]]; then
+        echo "未找到视频文件。"
+        return
+    fi
+
+    shot_dir="/tmp/screens_$(date +%s)"
+    mkdir -p "$shot_dir"
+
+    ffmpeg -hide_banner -loglevel error -i "$video_file" -vf "select=not(mod(n\,1000)),scale=$SCREEN_RESOLUTION" -frames:v "$SCREEN_COUNT" "$shot_dir/screen_%02d.jpg"
+
+    echo -e "\n[+] 上传截图..."
+    links=""
+    for img in "$shot_dir"/*.jpg; do
+        link=$(imgbox upload "$img" | grep -o 'https://imgbox.com/[^ ]*')
+        echo "$link"
+        links+="$link"$'\n'
     done
 }
 
 # 主菜单
 main_menu() {
     while true; do
-        echo -e "\n📋 主菜单："
-        echo "1. 获取 mediainfo"
-        echo "2. 获取 bdinfo"
-        echo "3. 获取截图链接"
-        echo "4. 修改截图参数（当前数量：$SHOT_COUNT，分辨率：$SHOT_RESOLUTION）"
+        echo -e "\n====== Media Tool 主菜单 ======"
+        if [[ -n "$SELECTED_DIR" ]]; then
+            echo "1. 选择影视目录（当前：$(basename "$SELECTED_DIR")）"
+        else
+            echo "1. 选择影视目录（当前未选择）"
+        fi
+        echo "2. 获取 mediainfo"
+        echo "3. 获取 bdinfo"
+        echo "4. 获取截图上传链接"
+        echo "5. 修改截图参数"
         echo "0. 退出"
-        read -rp "> " ACTION
+        read -rp "请选择操作项 [1-6]: " choice
 
-        case $ACTION in
-            1)
-                echo "\n📦 获取 mediainfo..."
-                mediainfo "$CURRENT_DIR"
-                ;;
-            2)
-                echo "\n📦 获取 bdinfo..."
-                chmod +x /usr/local/bin/bdinfo
-                /usr/local/bin/bdinfo "$CURRENT_DIR" > bdinfo.txt
-                cat bdinfo.txt
-                ;;
-            3)
-                echo "\n📸 开始生成截图（共 $SHOT_COUNT 张，分辨率 $SHOT_RESOLUTION）..."
-                FILE=$(find "$CURRENT_DIR" -type f -name '*.mkv' -o -name '*.mp4' | head -n 1)
-                ffmpeg -hide_banner -loglevel error -i "$FILE" -vf "fps=1/60,scale=$SHOT_RESOLUTION" -vframes "$SHOT_COUNT" "$CURRENT_DIR/snap_%03d.jpg"
-                LINKS=()
-                for img in "$CURRENT_DIR"/snap_*.jpg; do
-                    LINK=$(imgbox upload "$img")
-                    LINKS+=("$LINK")
-                done
-                printf "%s\n" "${LINKS[@]}" | tee screenshot_links.txt
-                ;;
-            4)
-                echo "🛠 修改截图参数"
-                read -rp "请输入截图数量（当前为 $SHOT_COUNT）：" NEW_COUNT
-                read -rp "请输入截图分辨率（当前为 $SHOT_RESOLUTION）：" NEW_RES
-                SHOT_COUNT=${NEW_COUNT:-$SHOT_COUNT}
-                SHOT_RESOLUTION=${NEW_RES:-$SHOT_RESOLUTION}
-                echo "✅ 参数更新成功"
-                ;;
-            0)
-                echo "👋 再见！"
-                exit 0
-                ;;
-            *)
-                echo "无效选择，请重试。"
-                ;;
+        case $choice in
+            1) choose_movie_dir ;;
+            2) run_mediainfo ;;
+            3) run_bdinfo ;;
+            4) run_screenshots ;;
+            5) change_screenshot_settings ;;
+            0) echo "退出脚本。"; exit 0 ;;
+            *) echo "无效选择，请重新输入。" ;;
         esac
     done
 }
 
-# 入口
-check_dependencies
-if [[ ! -f "$CONFIG_FILE" ]]; then
-    choose_media_dir
-fi
-MEDIA_DIR=$(cat "$CONFIG_FILE")
-
-while true; do
-    echo -e "\n📂 一级菜单："
-    echo "1. 选择影视目录"
-    if [[ -n "$CURRENT_DIR" ]]; then
-        echo "2. 获取 mediainfo"
-        echo "3. 获取 bdinfo"
-        echo "4. 获取截图链接"
-        echo "5. 修改截图参数（当前数量：$SHOT_COUNT，分辨率：$SHOT_RESOLUTION）"
-        echo "0. 退出"
-    else
-        echo "0. 退出"
-    fi
-    read -rp "> " MAIN_CHOICE
-
-    if [[ "$MAIN_CHOICE" == "1" ]]; then
-        select_movie_folder
-    elif [[ "$MAIN_CHOICE" == "0" ]]; then
-        echo "👋 再见！"
-        exit 0
-    elif [[ -n "$CURRENT_DIR" ]]; then
-        case $MAIN_CHOICE in
-            2) ACTION=1 ; main_menu ;;
-            3) ACTION=2 ; main_menu ;;
-            4) ACTION=3 ; main_menu ;;
-            5) ACTION=4 ; main_menu ;;
-            *) echo "无效选择。" ;;
-        esac
-    else
-        echo "⚠️  请先选择影视目录！"
-    fi
-
-done
+# 执行流程
+load_config
+install_dependencies
+setup_download_dir
+main_menu
