@@ -175,7 +175,7 @@ main_menu() {
             3) run_bdinfo ;;
             4) run_screenshots ;;
             5) change_screenshot_settings ;;
-            6) echo "退出脚本。"; exit 0 ;;
+            0) echo "退出脚本。"; exit 0 ;;
             *) echo "无效选择，请重新输入。" ;;
         esac
     done
