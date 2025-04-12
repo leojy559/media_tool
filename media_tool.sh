@@ -3,6 +3,7 @@
 CONFIG_FILE="$HOME/.media_tool_config"
 DEFAULT_SCREEN_COUNT=5
 DEFAULT_RESOLUTION="1920x1080"
+DEFAULT_BBCODE_OUTPUT=false
 SELECTED_DIR=""
 
 # 加载配置
@@ -12,6 +13,7 @@ load_config() {
     else
         SCREEN_COUNT=$DEFAULT_SCREEN_COUNT
         SCREEN_RESOLUTION=$DEFAULT_RESOLUTION
+        BBCODE_OUTPUT=$DEFAULT_BBCODE_OUTPUT
     fi
 }
 
@@ -21,6 +23,7 @@ save_config() {
 DOWNLOAD_DIR="$DOWNLOAD_DIR"
 SCREEN_COUNT=$SCREEN_COUNT
 SCREEN_RESOLUTION="$SCREEN_RESOLUTION"
+BBCODE_OUTPUT=$BBCODE_OUTPUT
 EOF
 }
 
@@ -80,13 +83,19 @@ choose_movie_dir() {
 
 # 修改截图参数
 change_screenshot_settings() {
-    echo -e "\n当前截图数量：$SCREEN_COUNT，分辨率：$SCREEN_RESOLUTION"
+    echo -e "\n当前截图数量：$SCREEN_COUNT，分辨率：$SCREEN_RESOLUTION，BBCode 格式：$BBCODE_OUTPUT"
     read -rp "请输入新的截图数量（回车跳过）: " new_count
     read -rp "请输入新的截图分辨率（如 1920x1080，回车跳过）: " new_resolution
+    read -rp "是否输出 BBCode 格式？(true/false，回车跳过，当前为 $BBCODE_OUTPUT): " new_bbcode
+
     [[ -n "$new_count" ]] && SCREEN_COUNT="$new_count"
     [[ -n "$new_resolution" ]] && SCREEN_RESOLUTION="$new_resolution"
+    if [[ "$new_bbcode" == "true" || "$new_bbcode" == "false" ]]; then
+        BBCODE_OUTPUT="$new_bbcode"
+    fi
+
     save_config
-    echo -e "✅ 已更新截图参数：$SCREEN_COUNT 张，分辨率 $SCREEN_RESOLUTION"
+    echo -e "✅ 已更新截图参数：$SCREEN_COUNT 张，分辨率 $SCREEN_RESOLUTION，BBCode 输出：$BBCODE_OUTPUT"
 }
 
 # 获取 mediainfo
@@ -114,7 +123,11 @@ run_screenshots() {
         return
     fi
 
-    /usr/local/bin/jietu --file "$video_file" --count "$SCREEN_COUNT" --size "$SCREEN_RESOLUTION"
+    if [[ "$BBCODE_OUTPUT" == "true" ]]; then
+        /usr/local/bin/jietu --file "$video_file" --count "$SCREEN_COUNT" --size "$SCREEN_RESOLUTION" --bbcode
+    else
+        /usr/local/bin/jietu --file "$video_file" --count "$SCREEN_COUNT" --size "$SCREEN_RESOLUTION"
+    fi
 }
 
 # 主菜单
