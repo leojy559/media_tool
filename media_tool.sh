@@ -27,8 +27,9 @@ EOF
 # 安装依赖
 install_dependencies() {
     echo -e "\n[+] 检查并安装必要组件..."
-    sudo apt update
-    sudo apt install -y mediainfo p7zip-full git curl jq mono-complete pipx python3-venv
+    
+    # 只检查依赖是否安装，不进行更新和升级
+    sudo apt install -y --no-install-recommends mediainfo p7zip-full git curl jq mono-complete pipx python3-venv
 
     export PATH="$PATH:$HOME/.local/bin:/root/.local/bin"
     pipx ensurepath >/dev/null 2>&1
