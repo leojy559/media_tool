@@ -164,9 +164,9 @@ main_menu() {
         fi
         echo "2. 获取 mediainfo"
         echo "3. 获取 bdinfo"
-        echo "4. 获取截图并上传链接"
+        echo "4. 获取截图上传链接"
         echo "5. 修改截图参数"
-        echo "6. 退出"
+        echo "0. 退出"
         read -rp "请选择操作项 [1-6]: " choice
 
         case $choice in
