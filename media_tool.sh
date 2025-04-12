@@ -13,7 +13,14 @@ function install_imgbox_cli() {
     echo -e "\n[+] 安装 imgbox-cli..."
     sudo apt update
     sudo apt install -y python3-pip
-    pip3 install imgbox-cli
+
+    # 尝试直接安装 imgbox-cli
+    if ! pip3 install imgbox-cli; then
+        echo -e "\n[!] 安装失败，尝试使用 pipx 安装..."
+        sudo apt install -y pipx
+        pipx install imgbox-cli
+    fi
+
     echo -e "\n✅ imgbox-cli 安装完成。"
 }
 
