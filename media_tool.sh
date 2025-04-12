@@ -88,8 +88,7 @@ change_screenshot_settings() {
 # 获取 mediainfo
 run_mediainfo() {
     if [[ -z "$SELECTED_DIR" ]]; then
-        echo "⚠️ 请先选择影视目录。"
-        return
+        choose_movie_dir  # 自动跳转到选择目录
     fi
     echo -e "\n[+] 获取 mediainfo..."
     result=$(mediainfo "$SELECTED_DIR")
@@ -99,8 +98,7 @@ run_mediainfo() {
 # 获取 bdinfo
 run_bdinfo() {
     if [[ -z "$SELECTED_DIR" ]]; then
-        echo "⚠️ 请先选择影视目录。"
-        return
+        choose_movie_dir  # 自动跳转到选择目录
     fi
     echo -e "\n[+] 获取 bdinfo..."
     result=$(/usr/local/bin/bdinfo "$SELECTED_DIR")
@@ -110,8 +108,7 @@ run_bdinfo() {
 # 获取截图并上传
 run_screenshots() {
     if [[ -z "$SELECTED_DIR" ]]; then
-        echo "⚠️ 请先选择影视目录。"
-        return
+        choose_movie_dir  # 自动跳转到选择目录
     fi
 
     echo -e "\n[+] 正在截图并上传..."
