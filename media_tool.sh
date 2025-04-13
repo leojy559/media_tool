@@ -1,143 +1,114 @@
 #!/bin/bash
 
-CONFIG_FILE="$HOME/.media_tool_config"
-DOWNLOAD_DIR=""
-SCREENSHOT_COUNT=5
-SCREENSHOT_RESOLUTION="1920x1080"
-BBCODE_OUTPUT=false
-
-# 载入配置
-load_config() {
-    if [[ -f "$CONFIG_FILE" ]]; then
-        source "$CONFIG_FILE"
+# 获取当前用户名，若是在 root 用户环境下运行则通过 $SUDO_USER 获取
+get_username() {
+    if [ -n "$SUDO_USER" ]; then
+        # 如果是使用 sudo 进入的 root 环境，获取最初的用户
+        echo "$SUDO_USER"
+    else
+        # 否则获取当前用户
+        echo "$(whoami)"
     fi
 }
 
-# 保存配置
-save_config() {
-    cat <<EOF > "$CONFIG_FILE"
-DOWNLOAD_DIR="$DOWNLOAD_DIR"
-SCREENSHOT_COUNT=$SCREENSHOT_COUNT
-SCREENSHOT_RESOLUTION="$SCREENSHOT_RESOLUTION"
-BBCODE_OUTPUT=$BBCODE_OUTPUT
-EOF
-}
+# 获取下载目录
+get_download_dir() {
+    # 默认路径
+    default_dir="/home/$(get_username)/qbittorrent/Downloads"
 
-# 安装依赖
-install_dependencies() {
-    echo -e "\n[+] 检查并安装必要组件..."
-    sudo apt update -qq
-    sudo apt install -y mediainfo p7zip-full git curl jq mono-complete pipx python3-venv
-
-    export PATH="$PATH:$HOME/.local/bin:/root/.local/bin"
-    pipx ensurepath >/dev/null 2>&1
-
-    # 安装 bdinfo
-    if [[ ! -f /usr/local/bin/bdinfo ]]; then
-        echo "[+] 下载 bdinfo..."
-        sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo
-    fi
-    sudo chmod +x /usr/local/bin/bdinfo
-
-    # 安装 jietu
-    if [[ ! -f /usr/local/bin/jietu ]]; then
-        echo "[+] 下载 jietu..."
-        sudo wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/jietu -O /usr/local/bin/jietu
-    fi
-    sudo chmod +x /usr/local/bin/jietu
-
-    # 给当前脚本赋予执行权限
-    chmod +x "$0"
-}
-
-# 设置下载目录
-setup_download_dir() {
-    echo -e "\n请输入 qBittorrent 的下载目录路径（如 /home/user/qbittorrent/Downloads）："
+    # 提示用户输入下载目录路径
+    echo -e "请输入 qBittorrent 的下载目录路径（默认: $default_dir）："
     read -r DOWNLOAD_DIR
-    save_config
-}
 
-# 获取 mediainfo
-get_mediainfo() {
-    echo -e "\n[+] 获取 mediainfo..."
-    mediainfo "$DOWNLOAD_DIR"/*
-}
+    # 如果用户没有输入路径，则使用默认路径
+    if [ -z "$DOWNLOAD_DIR" ]; then
+        DOWNLOAD_DIR=$default_dir
+    fi
 
-# 获取 bdinfo
-get_bdinfo() {
-    echo -e "\n[+] 获取 bdinfo..."
-    bdinfo "$DOWNLOAD_DIR" | tee /tmp/bdinfo_output.txt
-}
+    # 输出下载目录路径
+    echo "使用的下载目录为: $DOWNLOAD_DIR"
 
-# 获取截图
-get_screenshots() {
-    echo -e "\n[+] 上传截图..."
-    TEMP_DIR="/tmp/screens_$(date +%s)"
-    mkdir -p "$TEMP_DIR"
-    jietu "$DOWNLOAD_DIR" "$SCREENSHOT_COUNT" "$SCREENSHOT_RESOLUTION" "$TEMP_DIR"
+    # 列出目录中的文件夹
+    echo -e "\n[+] 获取下载目录下的文件夹..."
+    movie_folders=$(find "$DOWNLOAD_DIR" -mindepth 1 -maxdepth 1 -type d)
+    
+    if [ -z "$movie_folders" ]; then
+        echo "没有找到任何影视文件夹。"
+        exit 1
+    fi
 
-    for img in "$TEMP_DIR"/*.jpg; do
-        if $BBCODE_OUTPUT; then
-            echo "[img]$(imgbox upload "$img")[/img]"
-        else
-            imgbox upload "$img"
-        fi
+    echo -e "[+] 选择一个文件夹进行操作:"
+
+    # 给文件夹编号
+    i=1
+    for folder in $movie_folders; do
+        folder_name=$(basename "$folder")
+        echo "$i. $folder_name"
+        i=$((i+1))
     done
-}
 
-# 修改截图参数
-modify_screenshot_params() {
-    echo -e "\n当前截图数量：$SCREENSHOT_COUNT，分辨率：$SCREENSHOT_RESOLUTION，BBCode 格式：$BBCODE_OUTPUT"
-    read -rp "请输入新的截图数量（回车跳过）: " new_count
-    [[ -n "$new_count" ]] && SCREENSHOT_COUNT="$new_count"
+    # 提示用户选择文件夹
+    echo -n "请选择一个文件夹进行操作 (输入编号): "
+    read -r folder_choice
 
-    read -rp "请输入新的截图分辨率（如 1920x1080，回车跳过）: " new_resolution
-    [[ -n "$new_resolution" ]] && SCREENSHOT_RESOLUTION="$new_resolution"
+    selected_folder=$(echo "$movie_folders" | sed -n "${folder_choice}p")
+    selected_folder_name=$(basename "$selected_folder")
 
-    read -rp "是否输出 BBCode 格式？(true/false，回车跳过，当前为 $BBCODE_OUTPUT): " new_bbcode
-    [[ -n "$new_bbcode" ]] && BBCODE_OUTPUT="$new_bbcode"
+    if [ -z "$selected_folder" ]; then
+        echo "无效的选择。退出。"
+        exit 1
+    fi
 
-    save_config
+    echo "你选择了文件夹: $selected_folder_name"
+    return $selected_folder
 }
 
 # 主菜单
 main_menu() {
-    while true; do
-        echo -e "\n==== Media Tool 主菜单 ===="
-        echo "1. 选择影视目录"
-        echo "2. 获取 mediainfo"
-        echo "3. 获取 bdinfo"
-        echo "4. 获取截图链接"
-        echo "5. 修改截图参数"
-        echo "6. 退出"
-        read -rp "请选择操作: " choice
+    # 获取下载目录路径
+    get_download_dir
 
-        case $choice in
-            1)
-                setup_download_dir
-                ;;
-            2|3|4)
-                [[ -z "$DOWNLOAD_DIR" || ! -d "$DOWNLOAD_DIR" ]] && setup_download_dir
-                case $choice in
-                    2) get_mediainfo ;;
-                    3) get_bdinfo ;;
-                    4) get_screenshots ;;
-                esac
-                ;;
-            5)
-                modify_screenshot_params
-                ;;
-            6)
-                exit 0
-                ;;
-            *)
-                echo "无效选择，请重新输入。"
-                ;;
-        esac
-    done
+    # 在此基础上列出操作选项
+    echo -e "\n[+] 选择操作:"
+    echo "1. 获取 mediainfo 信息"
+    echo "2. 获取 bdinfo 信息"
+    echo "3. 获取截图上传链接"
+    echo "4. 设置下载目录"
+    echo "0. 退出"
+
+    echo -n "请选择操作: "
+    read -r operation_choice
+
+    case $operation_choice in
+        1)
+            # 处理 mediainfo 操作
+            echo "正在获取 mediainfo 信息..."
+            # 在这里执行 mediainfo 获取的相关操作
+            ;;
+        2)
+            # 处理 bdinfo 操作
+            echo "正在获取 bdinfo 信息..."
+            # 在这里执行 bdinfo 获取的相关操作
+            ;;
+        3)
+            # 处理截图上传操作
+            echo "正在获取截图上传链接..."
+            # 在这里执行截图上传操作
+            ;;
+        4)
+            # 重新设置下载目录
+            get_download_dir
+            ;;
+        0)
+            # 退出脚本
+            echo "退出脚本。"
+            exit 0
+            ;;
+        *)
+            echo "无效的选择。"
+            ;;
+    esac
 }
 
-# 初始化并启动
-install_dependencies
-load_config
+# 调用主菜单
 main_menu
