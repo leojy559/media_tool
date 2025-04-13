@@ -60,14 +60,15 @@ function install_dependencies() {
     echo "[+] 所有依赖安装完成。"
 }
 
-# 选择影视目录
+# 列出文件夹和文件
 function list_folders() {
-    echo -e "\n[+] 获取下载目录下的文件夹..."
-    # 排除掉名为 #recycle 的文件夹
-    IFS=$'\n' read -rd '' -a folders <<< "$(find "$DOWNLOAD_PATH" -mindepth 1 -maxdepth 1 -type d -name '#recycle' -prune -o -type d -printf '%f\n' 2>/dev/null | sort)"
+    echo -e "\n[+] 获取下载目录下的文件夹和文件..."
 
-    if [ ${#folders[@]} -eq 0 ]; then
-        echo "没有找到任何文件夹。"
+    # 获取下载目录下的所有文件和文件夹
+    IFS=$'\n' read -rd '' -a items <<< "$(find "$DOWNLOAD_PATH" -mindepth 1 -maxdepth 1 -printf '%P\n' 2>/dev/null | sort)"
+    
+    if [ ${#items[@]} -eq 0 ]; then
+        echo "没有找到任何文件或文件夹。"
         echo -ne "是否要修改下载目录？(y/n): "
         read -r answer
         if [[ "$answer" == [Yy] ]]; then
@@ -80,30 +81,42 @@ function list_folders() {
         return
     fi
 
-    echo -e "[+] 选择一个文件夹进行操作:"
-    for i in "${!folders[@]}"; do
-        index=$((i+1))
-        echo "$index. ${folders[$i]}"
+    echo -e "[+] 选择一个文件夹或文件进行操作:"
+    for item in "${items[@]}"; do
+        # 判断是文件夹还是文件
+        if [ -d "$DOWNLOAD_PATH/$item" ]; then
+            # 如果是文件夹，检查是否包含媒体文件
+            media_files=$(find "$DOWNLOAD_PATH/$item" -maxdepth 1 -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.m2ts" -o -iname "*.iso" \))
+            if [ -n "$media_files" ]; then
+                echo "$item"
+            fi
+        elif [ -f "$DOWNLOAD_PATH/$item" ]; then
+            # 如果是文件，检查是否是媒体文件
+            if [[ "$item" =~ \.(mkv|mp4|m2ts|iso)$ ]]; then
+                echo "$item"
+            fi
+        fi
     done
+
     echo "0. 返回"
 
-    echo -ne "\n请选择一个文件夹进行操作 (输入编号): "
-    read -e folder_choice
+    echo -ne "\n请选择一个文件夹或文件进行操作 (输入编号): "
+    read -r folder_choice
 
     if [ "$folder_choice" == "0" ]; then
         return
     fi
 
     folder_index=$((folder_choice-1))
-    if [ -z "${folders[$folder_index]}" ]; then
+    if [ -z "${items[$folder_index]}" ]; then
         echo "无效选择。"
         list_folders
         return
     fi
 
-    SELECTED_FOLDER="$DOWNLOAD_PATH/${folders[$folder_index]}"
-    echo -e "\n你选择了: $SELECTED_FOLDER"
-    action_menu "$SELECTED_FOLDER"
+    SELECTED_ITEM="$DOWNLOAD_PATH/${items[$folder_index]}"
+    echo -e "\n你选择了: $SELECTED_ITEM"
+    action_menu "$SELECTED_ITEM"
 }
 
 # 卸载工具
@@ -147,7 +160,7 @@ function action_menu() {
         echo "4. 修改截图数量（当前数量：${SCREEN_COUNT}）"
         echo "5. 重新选择影视目录"
         echo "6. 设置下载目录"
-        echo "7. 卸载工具"
+        echo "7. 卸载工具（jietu nconvert imgbox mediainfo bdinfo）"
         echo "0. 退出"
 
         echo -ne "\n选择操作 (输入编号): "
@@ -167,7 +180,15 @@ function action_menu() {
                 fi
                 ;;
             3)
-                echo "[+] 使用 imgbox 上传图床"
+                echo -ne "是否提供 ptpimg API Key？(n 表示不使用): "
+                read -r key_input
+                if [ "$key_input" != "n" ] && [ -n "$key_input" ]; then
+                    echo "$key_input" > "$PTPIMG_KEY_FILE"
+                    pip install ptpimg-uploader --break-system-packages
+                    export PTPIMG_API_KEY="$key_input"
+                    echo "[+] ptpimg 设置成功，后续默认使用"
+                fi
+
                 jietu "$target_folder"
                 ;;
             4)
