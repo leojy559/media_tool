@@ -34,6 +34,12 @@ function install_dependencies() {
         wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/jietu -O /usr/local/bin/jietu && chmod +x /usr/local/bin/jietu
     fi
 
+    # nconvert
+    if ! command -v nconvert &>/dev/null; then
+        wget https://download.xnview.com/NConvert-linux64.tgz && tar -xvzf NConvert-linux64.tgz --strip-components=1 -C /tmp && mv /tmp/nconvert /usr/local/bin/ && chmod +x /usr/local/bin/nconvert
+        rm -f NConvert-linux64.tgz
+    fi
+
     # imgbox-cli（默认安装）
     if ! command -v imgbox &>/dev/null; then
         apt install -y python3-pip
@@ -51,19 +57,14 @@ function install_dependencies() {
         wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo && chmod +x /usr/local/bin/bdinfo
     fi
 
-    # nconvert（保持安装）
-    if ! command -v nconvert &>/dev/null; then
-        wget https://download.xnview.com/NConvert-linux64.tgz && tar -xvzf NConvert-linux64.tgz --strip-components=1 -C /tmp && mv /tmp/nconvert /usr/local/bin/ && chmod +x /usr/local/bin/nconvert
-        rm -f NConvert-linux64.tgz
-    fi
-
     echo "[+] 所有依赖安装完成。"
 }
 
 # 选择影视目录
 function list_folders() {
     echo -e "\n[+] 获取下载目录下的文件夹..."
-    IFS=$'\n' read -rd '' -a folders <<< "$(find "$DOWNLOAD_PATH" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort)"
+    # 排除掉名为 #recycle 的文件夹
+    IFS=$'\n' read -rd '' -a folders <<< "$(find "$DOWNLOAD_PATH" -mindepth 1 -maxdepth 1 -type d -name '#recycle' -prune -o -type d -printf '%f\n' 2>/dev/null | sort)"
 
     if [ ${#folders[@]} -eq 0 ]; then
         echo "没有找到任何文件夹。"
@@ -112,8 +113,7 @@ function uninstall_tools() {
     echo "2. 卸载 imgbox-cli"
     echo "3. 卸载 mediainfo"
     echo "4. 卸载 bdinfo"
-    echo "5. 卸载 nconvert"
-    echo "6. 卸载全部"
+    echo "5. 卸载全部"
     echo "0. 返回"
     echo -ne "请输入选择: "
     read -r uninstall_choice
@@ -123,8 +123,7 @@ function uninstall_tools() {
         2) pip uninstall -y imgbox-cli || pipx uninstall imgbox-cli && echo "已卸载 imgbox-cli" ;;
         3) apt remove -y mediainfo && echo "已卸载 mediainfo" ;;
         4) rm -f /usr/local/bin/bdinfo && echo "已卸载 bdinfo" ;;
-        5) rm -f /usr/local/bin/nconvert && echo "已卸载 nconvert" ;;
-        6)
+        5)
             rm -f /usr/local/bin/jietu /usr/local/bin/bdinfo /usr/local/bin/nconvert
             pip uninstall -y imgbox-cli ptpimg-uploader
             apt remove -y mediainfo mono-complete git
@@ -144,7 +143,7 @@ function action_menu() {
         echo -e "⚠️ 注意剧集为 mediainfo，原盘为 bdinfo"
         echo "1. 获取 mediainfo 信息"
         echo "2. 获取 bdinfo 信息"
-        echo "3. 获取截图上传链接 (截图 + 上传图床)"
+        echo "3. 获取截图上传链接 (截图 + 压缩 + 上传图床)"
         echo "4. 修改截图数量（当前数量：${SCREEN_COUNT}）"
         echo "5. 重新选择影视目录"
         echo "6. 设置下载目录"
@@ -168,6 +167,7 @@ function action_menu() {
                 fi
                 ;;
             3)
+                echo "[+] 使用 imgbox 上传图床"
                 jietu "$target_folder"
                 ;;
             4)
