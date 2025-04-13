@@ -93,7 +93,9 @@ function list_folders() {
         elif [ -f "$DOWNLOAD_PATH/$item" ]; then
             # 如果是文件，检查是否是媒体文件
             if [[ "$item" =~ \.(mkv|mp4|m2ts|iso)$ ]]; then
-                echo "$item"
+                # 隐藏文件后缀
+                file_name_without_extension="${item%.*}"
+                echo "$file_name_without_extension"
             fi
         fi
     done
@@ -123,26 +125,20 @@ function list_folders() {
 function uninstall_tools() {
     echo -e "\n选择要卸载的工具："
     echo "1. 卸载 jietu"
-    echo "2. 卸载 imgbox-cli"
-    echo "3. 卸载 mediainfo"
-    echo "4. 卸载 bdinfo"
-    echo "5. 卸载全部"
+    echo "2. 卸载 nconvert"
+    echo "3. 卸载 imgbox-cli"
+    echo "4. 卸载 mediainfo"
+    echo "5. 卸载 bdinfo"
     echo "0. 返回"
     echo -ne "请输入选择: "
     read -r uninstall_choice
 
     case $uninstall_choice in
         1) rm -f /usr/local/bin/jietu && echo "已卸载 jietu" ;;
-        2) pip uninstall -y imgbox-cli || pipx uninstall imgbox-cli && echo "已卸载 imgbox-cli" ;;
-        3) apt remove -y mediainfo && echo "已卸载 mediainfo" ;;
-        4) rm -f /usr/local/bin/bdinfo && echo "已卸载 bdinfo" ;;
-        5)
-            rm -f /usr/local/bin/jietu /usr/local/bin/bdinfo /usr/local/bin/nconvert
-            pip uninstall -y imgbox-cli ptpimg-uploader
-            apt remove -y mediainfo mono-complete git
-            echo "已卸载全部工具。"
-            exit 0
-            ;;
+        2) rm -f /usr/local/bin/nconvert && echo "已卸载 nconvert" ;;
+        3) pip uninstall -y imgbox-cli || pipx uninstall imgbox-cli && echo "已卸载 imgbox-cli" ;;
+        4) apt remove -y mediainfo && echo "已卸载 mediainfo" ;;
+        5) rm -f /usr/local/bin/bdinfo && echo "已卸载 bdinfo" ;;
         0) return ;;
         *) echo "无效选择。" ;;
     esac
