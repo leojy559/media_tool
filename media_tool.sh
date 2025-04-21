@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 获取当前登录用户名
-LOGIN_USER=$(logname)
+# 获取 /home 目录下的第一个用户名
+LOGIN_USER=$(ls /home | head -n 1)
 DEFAULT_PATH="/home/$LOGIN_USER/qbittorrent/Downloads"
 CONFIG_FILE="$HOME/.media_tool_config"
 PTPIMG_KEY_FILE="$HOME/.ptpimg_api"
