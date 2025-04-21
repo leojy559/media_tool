@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 获取 /home 目录下的第一个用户名
+# 获取 /home 下的第一个用户名
 LOGIN_USER=$(ls /home | head -n 1)
 DEFAULT_PATH="/home/$LOGIN_USER/qbittorrent/Downloads"
 CONFIG_FILE="$HOME/.media_tool_config"
@@ -64,6 +64,10 @@ function install_dependencies() {
     if ! command -v bdinfo &>/dev/null; then
         apt install -y mono-complete git
         wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo && chmod +x /usr/local/bin/bdinfo
+    fi
+
+    if ! command -v ffmpeg &>/dev/null; then
+        apt install -y ffmpeg
     fi
 
     echo "[+] 所有依赖安装完成。"
@@ -140,7 +144,8 @@ function uninstall_tools() {
     echo "3. 卸载 imgbox-cli"
     echo "4. 卸载 mediainfo"
     echo "5. 卸载 bdinfo"
-    echo "6. 卸载全部"
+    echo "6. 卸载 ffmpeg"
+    echo "7. 卸载全部"
     echo "0. 返回"
     echo -ne "请输入选择: "
     read -r uninstall_choice
@@ -151,10 +156,11 @@ function uninstall_tools() {
         3) pip uninstall -y imgbox-cli || pipx uninstall imgbox-cli && echo "已卸载 imgbox-cli" ;;
         4) apt remove -y mediainfo && echo "已卸载 mediainfo" ;;
         5) rm -f /usr/local/bin/bdinfo && echo "已卸载 bdinfo" ;;
-        6)
+        6) apt remove -y ffmpeg && echo "已卸载 ffmpeg" ;;
+        7)
             rm -f /usr/local/bin/jietu /usr/local/bin/nconvert /usr/local/bin/bdinfo
             pip uninstall -y imgbox-cli ptpimg-uploader
-            apt remove -y mediainfo mono-complete git
+            apt remove -y mediainfo mono-complete git ffmpeg
             echo "已卸载所有工具。"
             exit 0
             ;;
@@ -171,11 +177,11 @@ function action_menu() {
         echo -e "⚠️ 注意剧集为 mediainfo，原盘为 bdinfo"
         echo "1. 获取 mediainfo 信息"
         echo "2. 获取 bdinfo 信息"
-        echo "3. 获取截图上传链接 (如果截图失败请重新修改截图数量)"
+        echo "3. 获取截图上传链接 (失败重新修改截图数量)"
         echo "4. 修改截图数量（当前数量：${SCREEN_COUNT}）"
         echo "5. 重新选择影视目录"
         echo "6. 设置下载目录"
-        echo "7. 卸载工具（jietu nconvert imgbox mediainfo bdinfo）"
+        echo "7. 卸载工具（jietu nconvert imgbox mediainfo bdinfo ffmpeg）"
         echo "0. 退出"
 
         echo -ne "\n选择操作 (输入编号): "
@@ -197,7 +203,7 @@ function action_menu() {
                 if [[ "$new_count" =~ ^[0-9]+$ ]]; then
                     SCREEN_COUNT="$new_count"
                     save_config
-                    sed -i "s/^pics=.*/pics=$SCREEN_COUNT/" /usr/local/bin/jietu
+                    sed -i "s/^pics=.*/pics=${SCREEN_COUNT}/" /usr/local/bin/jietu
                     echo "[+] 截图数量已更新为 $SCREEN_COUNT"
                 else
                     echo "输入无效。"
