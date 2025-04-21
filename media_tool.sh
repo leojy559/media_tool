@@ -171,7 +171,7 @@ function action_menu() {
         echo -e "⚠️ 注意剧集为 mediainfo，原盘为 bdinfo"
         echo "1. 获取 mediainfo 信息"
         echo "2. 获取 bdinfo 信息"
-        echo "3. 获取截图上传链接 (截图 + 压缩 + 上传图床)"
+        echo "3. 获取截图上传链接 (如果截图失败请重新修改截图数量)"
         echo "4. 修改截图数量（当前数量：${SCREEN_COUNT}）"
         echo "5. 重新选择影视目录"
         echo "6. 设置下载目录"
