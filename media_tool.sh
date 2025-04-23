@@ -173,6 +173,7 @@ function uninstall_tools() {
 function action_menu() {
     local target_folder="$1"
     while true; do
+        echo -e "作者：重生我要当大佬"
         echo -e "\n====== Media Tool 主菜单 ======"
         echo -e "⚠️ 注意剧集为 mediainfo，原盘为 bdinfo"
         echo "1. 获取 mediainfo 信息"
