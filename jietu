@@ -351,39 +351,21 @@ ${cyan}Pixel   Aspect Ratio (mediainfo)  ${yellow}$PAR
 ${cyan}Video Resolution                  ${yellow}$VideoResolution  --->  $fenbianlv${normal}"
 
 }
+# 检查是否有截图需要上传
 if ls /log/screenshots/*.png 1> /dev/null 2>&1; then
         # ⬇️ 插入压缩逻辑
     for img in /log/screenshots/*.png; do
         [ ! -f "$img" ] && continue
         size=$(stat -c%s "$img")
         if [ "$size" -gt 10485760 ]; then
-            has_nconvert=false
-            if command -v nconvert >/dev/null 2>&1 && [ -x "$(command -v nconvert)" ]; then
-                has_nconvert=true
-            fi
-            echo "[压缩] $img 大小为 $(du -h "$img" | cut -f1)，开始压缩..."
-            if $has_nconvert; then
-                nconvert -q 85 -o "$img" "$img" || {
-                    echo "nconvert 压缩失败，尝试 convert..."
-                    convert "$img" -quality 85 "$img"
-                }
-            else
-                echo "未找到 nconvert，使用 convert 进行压缩..."
-                convert "$img" -quality 85 "$img"
-            fi
-            img_size=$(stat -c%s "$img")
-            if [ "$img_size" -gt 10485760 ]; then
+            echo "[压缩] $img 大小为 $(($size / 1024 / 1024))MB，开始压缩..."
+            convert "$img" -quality 85 "$img"
+            size2=$(stat -c%s "$img")
+            if [ "$size2" -gt 10485760 ]; then
                 echo "[二次压缩] $img 仍大于10MB，继续压缩为75%..."
-                if $has_nconvert; then
-                    nconvert -q 75 -o "$img" "$img" || {
-                        echo "nconvert 压缩失败，尝试 convert..."
-                        convert "$img" -quality 75 "$img"
-                    }
-                else
-                    convert "$img" -quality 75 "$img"
-                fi
+                convert "$img" -quality 75 "$img"
             fi
-            echo "[完成] 压缩后大小：$(du -h "$img" | cut -f1)"
+            echo "[完成] 压缩后大小：$(($(stat -c%s "$img") / 1024 / 1024))MB"
         fi
     done
     # 优先使用ptpimg（如果有API）
