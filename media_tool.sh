@@ -44,7 +44,7 @@ function install_dependencies() {
     echo -e "\n[+] 正在安装依赖..."
 
     apt update
-    apt install -y ffmpeg mediainfo
+    apt install -y ffmpeg mediainfo imagemagick
 
     if ! command -v jietu &>/dev/null; then
         wget -q https://raw.githubusercontent.com/i-kirito/media_tool/main/jietu -O /usr/local/bin/jietu && chmod +x /usr/local/bin/jietu
