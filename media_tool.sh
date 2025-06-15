@@ -47,7 +47,7 @@ function install_dependencies() {
     apt install -y ffmpeg mediainfo
 
     if ! command -v jietu &>/dev/null; then
-        wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/jietu -O /usr/local/bin/jietu && chmod +x /usr/local/bin/jietu
+        wget -q https://raw.githubusercontent.com/i-kirito/media_tool/main/jietu -O /usr/local/bin/jietu && chmod +x /usr/local/bin/jietu
     fi
 
     if ! command -v nconvert &>/dev/null; then
@@ -67,27 +67,6 @@ function install_dependencies() {
 
     echo "[+] 所有依赖安装完成。"
 }
-
-# ✅ 新增：压缩大于 10MB 的截图为 JPEG
-function compress_large_images() {
-    echo "[+] 正在压缩大图为 JPG..."
-
-    local shot_dir="/log/screenshots"
-    mkdir -p "$shot_dir"
-
-    # 遍历所有 png 图片
-    find "$shot_dir" -type f -name '*.png' | while read -r img; do
-        size=$(stat -c %s "$img")
-        if (( size > 10485760 )); then
-            jpg_img="${img%.png}.jpg"
-            echo "压缩: $(basename "$img") → $(basename "$jpg_img")"
-            ffmpeg -y -i "$img" -q:v 3 "$jpg_img" && rm -f "$img"
-        fi
-    done
-
-    echo "[+] 压缩完成。"
-}
-
 # 选择影视目录
 function list_folders() {
     echo -e "\n[+] 获取下载目录下的文件夹..."
@@ -211,7 +190,6 @@ function action_menu() {
                 ;;
             3)
                 jietu "$target_folder"
-                compress_large_images   # ✅ 截图完成后压缩大图片
                 ;;
             4)
                 echo -ne "请输入新的截图数量（当前: $SCREEN_COUNT）: "
