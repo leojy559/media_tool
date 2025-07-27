@@ -62,7 +62,7 @@ function install_dependencies() {
 
     if ! command -v bdinfo &>/dev/null; then
         apt install -y mono-complete git
-        wget -q https://raw.githubusercontent.com/akina-up/seedbox-info/master/script/bdinfo -O /usr/local/bin/bdinfo && chmod +x /usr/local/bin/bdinfo
+        wget -q https://raw.githubusercontent.com/i-kirito/media_tool/main/bdinfo -O /usr/local/bin/bdinfo && chmod +x /usr/local/bin/bdinfo
     fi
 
     echo "[+] 所有依赖安装完成。"
